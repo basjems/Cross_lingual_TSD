@@ -89,9 +89,9 @@ def align_tokens_and_annotation_labels(tokenized: BatchEncoding, annotations, pa
     return aligned_labels
 
 def preprocess_TSD (file_dict:Dict, tokenizer:AutoTokenizer, max_len = 512):
-    """Preprocesses a list of .csv files into a dictionary TSDdataset objects.
-    Param files: a list of .csv files to be preprocessed
-    tokenizer: an Autotokenizer (the output of create_model_tokenizer_folder)"""
+    """Preprocesses a dict of .csv files into a dictionary TSDdataset objects.
+    Param files: a dict holding paths to .csv files to be preprocessed. Keys should be 'train' 'dev' and/or 'test', values should be paths to respective data file.
+    tokenizer: an AutoTokenizer with which we want to preprocess the data."""
     TSD_datasetdict = {}
 
     #open file and extract the list of texts and list of spans
