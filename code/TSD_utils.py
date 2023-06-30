@@ -15,35 +15,6 @@ from statistics import mean
 
 
 
-# INITIALIZING MODEL AND TOKENIZER
-
-def create_model_tokenizer_folder(model_checkpoint:str, destination_folder:str, id2label:Dict):
-    """Loads a tokenizer and model for tokenclassification, and creates a folder in which the trained model is to be saved.
-    Param str model_checkpoint: the model checkpoint with which the model can be imported from the huggingface library.
-        works at least for the following: facebook/xlm-v-base, xlm-roberta-base, bert-base-multilingual-cased, distilbert-base-multilingual-cased, ai-forever/mGPT
-    Param str destination_folder: the folder in which we want the model to be saved..
-    id2label: a dictionary mapping ids to labels"""
-
-    #Create label2id, the revesre of id2label
-    label2id = {v: k for k, v in id2label.items()}
-
-    #load tokenizer and add pad token
-    tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
-    tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-    #load model
-    model = AutoModelForTokenClassification.from_pretrained(model_checkpoint,
-                                                            num_labels = len(id2label),
-                                                            id2label=id2label,
-                                                            label2id=label2id,)
-
-    destination_folder = f"{destination_folder}{model_checkpoint.replace('/', '_')}_trained_for_TSD"
-    #Create the destination folder for this model, which gets the name of the model checkpoint followed by 'trained_for_TSD'
-    try:
-        os.mkdir(destination_folder)
-    except FileExistsError:
-        pass
-
-    return model, tokenizer, destination_folder
 
 
 #PREPROCESSING
@@ -143,27 +114,36 @@ def convert_token_predictions_to_spans(binary_predictions, test_datasetdict, pad
 
 
 def calculate_evaluation_metrics(gold, pred):
+    """Calculates averaged f1, precision and recall for TSD, via the metric defined by Pavlopoulos et al's "SemEval-2021 Task 5: Toxic Spans Detection" (2021)
+    Param gold: the gold labels (list of lists of character indices)
+    Param pred: system predictions (list of lists of character indices) 
+    Returns: a dictionary holding precision, recall and f1"""
     all_precision = []
     all_recall = []
     all_f1 = []
 
+    #iterate over all sublists in the gold and pred lists
     for tweet_gold, tweet_pred in zip(gold,pred):
+        #gold may hold strings instead of sublists. If so, convert to list.
         if type(tweet_gold) == str:
             tweet_gold = ast.literal_eval(tweet_gold)
 
-
+        #If there are no toxic spans and none predicted, set precision, recall and f1 to 1
         if tweet_gold == [] and tweet_pred == []:
             precision, recall, f1 = 1,1,1
+        #else, if either gold or pred holds no spans, set precision, recall and f1 to 0
         elif tweet_gold == [] or tweet_pred == []:
             precision, recall, f1 = 0,0,0
 
+        #else, count the number of true positives, false positives, false negatives
         else:
             TP = len([char for char in tweet_pred if char in tweet_gold])
             FP = len([char for char in tweet_pred if char not in tweet_gold])
             FN = len([char for char in tweet_gold if char not in tweet_pred])
 
-        precision_I = (TP/(TP+FP))
-        recall_I = (TP/(TP+FN))
+        #calculate precision, recall, f1
+        precision = (TP/(TP+FP))
+        recall = (TP/(TP+FN))
         try:
             f1 = 2*precision*recall/(precision+recall)
         except ZeroDivisionError:
