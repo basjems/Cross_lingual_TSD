@@ -72,18 +72,9 @@ def preprocess_TSD (file_dict:Dict, tokenizer:AutoTokenizer, max_len = 512):
         spans = list(df['spans'])
 
         #tokenize the texts so that we can create a list of gold labels that is aligned with the tokens
-        raw_encodings = tokenizer(texts)
-        all_labels = []
-        #enumerate over spans, find the corresponding encoding and create a list of gold labels on a token level
-        for i, span in enumerate(spans):
-          encoding = raw_encodings[i]
-          aligned_labels = align_tokens_and_annotation_labels(encoding, span)
-          all_labels.append(aligned_labels)
-
-        #create encodings, this time with truncation and padding
         encodings = tokenizer(texts, truncation = True, max_length = max_len, padding = 'max_length')
-        #create a TSDdataset with the encodings and matched align_tokens_and_annotation_labels
-        TSD_datasetdict[data_type] = TSDdataset(encodings, all_labels)
+        labels = [align_tokens_and_annotation_labels(tokenized, annotation, max_len, pad_token) for tokenized, annotation in zip(tokenizer(texts).encodings, spans)]
+        TSD_datasetdict[data_type] = TSDdataset(encodings, labels)
 
     return TSD_datasetdict
 
@@ -93,22 +84,28 @@ def preprocess_TSD (file_dict:Dict, tokenizer:AutoTokenizer, max_len = 512):
 
 
 
-def convert_token_predictions_to_spans(binary_predictions, test_datasetdict, pad_token=-100):
-    all_spans = []
-    for tweet_idx, predictions in enumerate(binary_predictions):
-        tweet_spans = []
-        for token_idx, pred_token in enumerate(predictions):
-          if test_datasetdict.labels[tweet_idx][token_idx] != pad_token:
-            if pred_token == 1:
-              token_span = test_datasetdict.encodings.token_to_chars(tweet_idx, token_idx)
-              tweet_spans += ([idx for idx in range(token_span.start, token_span.end)])
-          else:
-            break
-        all_spans.append(tweet_spans)
+def convert_token_predictions_to_spans(binary_predictions, test_datasetdict, text_list, pad_token=-100):
 
-    return all_spans
+  all_spans = []
+  for tweet_idx, predictions in enumerate(binary_predictions):
+    cur_tweet = text_list[tweet_idx]
+    tweet_spans = []
+    toxic_words = []
+    for token_idx, pred_token in enumerate(predictions):
+      if test_datasetdict.labels[tweet_idx][token_idx] != pad_token:
+        if pred_token == 1:
+          cur_tweet = text_list[tweet_idx]
+
+          token_span = test_datasetdict.encodings.token_to_chars(tweet_idx, token_idx)
+          tweet_spans += [idx for idx in range(token_span.start, token_span.end) if cur_tweet[idx] != ' ']
+
+      else:
+        break
+
+    all_spans.append(tweet_spans)
 
 
+  return all_spans
 
 
 
